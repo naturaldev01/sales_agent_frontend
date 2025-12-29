@@ -80,9 +80,11 @@ export function getUnreadCount(): number {
 }
 
 // Subscribe to changes
-export function subscribe(listener: () => void) {
+export function subscribe(listener: () => void): () => void {
   listeners.add(listener);
-  return () => listeners.delete(listener);
+  return () => {
+    listeners.delete(listener);
+  };
 }
 
 function notifyListeners() {
