@@ -185,6 +185,21 @@ export async function getPhotos(limit?: number): Promise<PhotoAssetWithLead[]> {
   return fetchApi<PhotoAssetWithLead[]>(`/photos${params}`);
 }
 
+export async function verifyPhoto(id: string): Promise<PhotoAsset> {
+  return fetchApi<PhotoAsset>(`/photos/${id}/verify`, {
+    method: "PATCH",
+    headers: getAuthHeader(),
+  });
+}
+
+export async function rejectPhoto(id: string, reason: string): Promise<PhotoAsset> {
+  return fetchApi<PhotoAsset>(`/photos/${id}/reject`, {
+    method: "PATCH",
+    headers: getAuthHeader(),
+    body: JSON.stringify({ reason }),
+  });
+}
+
 // Settings
 export interface SystemConfig {
   id: string;

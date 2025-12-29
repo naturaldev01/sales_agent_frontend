@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
-import { Image, User, Check, X, Eye, Download, Filter } from "lucide-react";
-import { getPhotos, PhotoAssetWithLead } from "@/lib/api";
+import { Image, User, Check, X, Eye, Download, Filter, AlertTriangle, Loader2 } from "lucide-react";
+import { getPhotos, verifyPhoto, rejectPhoto, PhotoAssetWithLead } from "@/lib/api";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
 
@@ -13,11 +13,64 @@ export default function PhotosPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [filter, setFilter] = useState<"all" | "pending" | "verified">("all");
   const [selectedPhoto, setSelectedPhoto] = useState<PhotoAssetWithLead | null>(null);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+
+  const queryClient = useQueryClient();
 
   const { data: photos, isLoading } = useQuery({
     queryKey: ["photos"],
     queryFn: () => getPhotos(50),
   });
+
+  // Verify mutation
+  const verifyMutation = useMutation({
+    mutationFn: (id: string) => verifyPhoto(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["photos"] });
+      setSelectedPhoto(null);
+    },
+    onError: (error) => {
+      console.error("Failed to verify photo:", error);
+      alert("Failed to verify photo. Please try again.");
+    },
+  });
+
+  // Reject mutation
+  const rejectMutation = useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) => rejectPhoto(id, reason),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["photos"] });
+      setSelectedPhoto(null);
+      setShowRejectModal(false);
+      setRejectReason("");
+    },
+    onError: (error) => {
+      console.error("Failed to reject photo:", error);
+      alert("Failed to reject photo. Please try again.");
+    },
+  });
+
+  const handleVerify = () => {
+    if (selectedPhoto) {
+      verifyMutation.mutate(selectedPhoto.id);
+    }
+  };
+
+  const handleOpenRejectModal = () => {
+    setShowRejectModal(true);
+  };
+
+  const handleReject = () => {
+    if (selectedPhoto && rejectReason.trim()) {
+      rejectMutation.mutate({ id: selectedPhoto.id, reason: rejectReason.trim() });
+    }
+  };
+
+  const handleCloseRejectModal = () => {
+    setShowRejectModal(false);
+    setRejectReason("");
+  };
 
   const filteredPhotos = photos?.filter((p) => {
     if (filter === "pending") return !p.is_verified;
@@ -206,16 +259,98 @@ export default function PhotosPage() {
                 </div>
               </div>
 
+              {/* Status indicator */}
+              {selectedPhoto.is_verified && (
+                <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center gap-2">
+                  <Check className="h-5 w-5 text-emerald-500" />
+                  <span className="text-emerald-700 text-sm font-medium">This photo has been verified</span>
+                </div>
+              )}
+
               <div className="flex gap-2">
-                <button className="flex-1 py-2 px-4 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors flex items-center justify-center gap-2">
-                  <Check className="h-5 w-5" />
-                  Verify
+                <button 
+                  onClick={handleVerify}
+                  disabled={verifyMutation.isPending || selectedPhoto.is_verified === true}
+                  className="flex-1 py-2 px-4 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {verifyMutation.isPending ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <Check className="h-5 w-5" />
+                  )}
+                  {verifyMutation.isPending ? "Verifying..." : "Verify"}
                 </button>
-                <button className="flex-1 py-2 px-4 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors flex items-center justify-center gap-2">
+                <button 
+                  onClick={handleOpenRejectModal}
+                  disabled={rejectMutation.isPending}
+                  className="flex-1 py-2 px-4 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
                   <X className="h-5 w-5" />
                   Reject
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reject Modal */}
+      {showRejectModal && selectedPhoto && (
+        <div
+          className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60] p-4"
+          onClick={handleCloseRejectModal}
+        >
+          <div
+            className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-red-100 rounded-full">
+                <AlertTriangle className="h-6 w-6 text-red-500" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-slate-800">Reject Photo</h3>
+                <p className="text-sm text-slate-500">This will notify the patient</p>
+              </div>
+            </div>
+
+            <p className="text-sm text-slate-600 mb-4">
+              Please provide a reason for rejection. This message will be sent to the patient so they can submit better photos.
+            </p>
+
+            <textarea
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              placeholder="e.g., Photo is blurry, please send a clearer one from the front angle..."
+              className="w-full p-3 border border-slate-200 rounded-lg resize-none h-28 focus:ring-2 focus:ring-red-500 focus:border-transparent text-slate-700 placeholder:text-slate-400"
+              autoFocus
+            />
+
+            <div className="flex gap-3 mt-4">
+              <button
+                onClick={handleCloseRejectModal}
+                disabled={rejectMutation.isPending}
+                className="flex-1 py-2.5 px-4 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors font-medium disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleReject}
+                disabled={!rejectReason.trim() || rejectMutation.isPending}
+                className="flex-1 py-2.5 px-4 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {rejectMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <X className="h-4 w-4" />
+                    Reject & Notify
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>

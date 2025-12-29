@@ -32,9 +32,12 @@ import {
   createComment,
   deleteComment,
   toggleCommentPin,
+  verifyPhoto,
+  rejectPhoto,
   Lead,
   Message,
   DoctorComment,
+  PhotoAsset,
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -227,7 +230,7 @@ export function LeadDetail({ leadId, onClose }: LeadDetailProps) {
         {activeTab === "messages" && conversations?.[0] && (
           <MessagesTab conversationId={conversations[0].id} />
         )}
-        {activeTab === "photos" && <PhotosTab photos={photos || []} />}
+        {activeTab === "photos" && <PhotosTab photos={photos || []} leadId={leadId!} />}
         {activeTab === "notes" && (
           <NotesTab 
             leadId={leadId!} 
@@ -565,8 +568,67 @@ function NotesTab({
   );
 }
 
-function PhotosTab({ photos }: { photos: any[] }) {
-  const [selectedPhoto, setSelectedPhoto] = useState<any | null>(null);
+function PhotosTab({ photos, leadId }: { photos: PhotoAsset[]; leadId: string }) {
+  const [selectedPhoto, setSelectedPhoto] = useState<PhotoAsset | null>(null);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+  const queryClient = useQueryClient();
+
+  // Verify mutation
+  const verifyMutation = useMutation({
+    mutationFn: (id: string) => verifyPhoto(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["photos", leadId] });
+      setSelectedPhoto(null);
+    },
+    onError: (error) => {
+      console.error("Failed to verify photo:", error);
+      alert("Failed to verify photo. Please try again.");
+    },
+  });
+
+  // Reject mutation
+  const rejectMutation = useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) => rejectPhoto(id, reason),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["photos", leadId] });
+      setSelectedPhoto(null);
+      setShowRejectModal(false);
+      setRejectReason("");
+    },
+    onError: (error) => {
+      console.error("Failed to reject photo:", error);
+      alert("Failed to reject photo. Please try again.");
+    },
+  });
+
+  const handleVerify = () => {
+    if (selectedPhoto) {
+      verifyMutation.mutate(selectedPhoto.id);
+    }
+  };
+
+  const handleOpenRejectModal = () => {
+    setShowRejectModal(true);
+  };
+
+  const handleReject = () => {
+    if (selectedPhoto && rejectReason.trim()) {
+      rejectMutation.mutate({ id: selectedPhoto.id, reason: rejectReason.trim() });
+    }
+  };
+
+  const handleCloseRejectModal = () => {
+    setShowRejectModal(false);
+    setRejectReason("");
+  };
+
+  // Stats
+  const stats = {
+    total: photos.length,
+    pending: photos.filter(p => !p.is_verified).length,
+    verified: photos.filter(p => p.is_verified).length,
+  };
 
   if (photos.length === 0) {
     return (
@@ -579,12 +641,33 @@ function PhotosTab({ photos }: { photos: any[] }) {
 
   return (
     <>
+      {/* Stats Summary */}
+      <div className="flex gap-4 mb-4">
+        <div className="flex items-center gap-2 text-sm">
+          <span className="h-2 w-2 rounded-full bg-slate-400"></span>
+          <span className="text-slate-600">{stats.total} Total</span>
+        </div>
+        <div className="flex items-center gap-2 text-sm">
+          <span className="h-2 w-2 rounded-full bg-amber-500"></span>
+          <span className="text-slate-600">{stats.pending} Pending</span>
+        </div>
+        <div className="flex items-center gap-2 text-sm">
+          <span className="h-2 w-2 rounded-full bg-emerald-500"></span>
+          <span className="text-slate-600">{stats.verified} Verified</span>
+        </div>
+      </div>
+
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         {photos.map((photo) => (
           <div
             key={photo.id}
             onClick={() => setSelectedPhoto(photo)}
-            className="aspect-square bg-slate-100 rounded-xl overflow-hidden relative group cursor-pointer hover:ring-2 hover:ring-emerald-500 transition-all"
+            className={cn(
+              "aspect-square bg-slate-100 rounded-xl overflow-hidden relative group cursor-pointer transition-all",
+              photo.is_verified 
+                ? "ring-2 ring-emerald-500 hover:ring-emerald-400" 
+                : "hover:ring-2 hover:ring-amber-500"
+            )}
           >
             {photo.signed_url ? (
               <img
@@ -602,43 +685,159 @@ function PhotosTab({ photos }: { photos: any[] }) {
                 {photo.checklist_key || "Photo"}
               </p>
             </div>
-            {photo.is_verified && (
-              <div className="absolute top-2 right-2">
-                <CheckCircle className="h-5 w-5 text-green-500" />
-              </div>
-            )}
+            {/* Status badge */}
+            <div className="absolute top-2 right-2">
+              {photo.is_verified ? (
+                <div className="h-6 w-6 rounded-full bg-emerald-500 flex items-center justify-center shadow-md">
+                  <CheckCircle className="h-4 w-4 text-white" />
+                </div>
+              ) : (
+                <div className="h-6 w-6 rounded-full bg-amber-500 flex items-center justify-center shadow-md">
+                  <span className="text-white text-xs font-bold">?</span>
+                </div>
+              )}
+            </div>
           </div>
         ))}
       </div>
 
-      {/* Photo Modal */}
-      {selectedPhoto && (
+      {/* Photo Modal with Approve/Reject */}
+      {selectedPhoto && !showRejectModal && (
         <div
-          className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
+          className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
           onClick={() => setSelectedPhoto(null)}
         >
           <div
-            className="max-w-3xl max-h-[90vh] relative"
+            className="bg-white rounded-2xl max-w-3xl w-full overflow-hidden shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <button
-              onClick={() => setSelectedPhoto(null)}
-              className="absolute -top-10 right-0 text-white hover:text-slate-300"
-            >
-              <X className="h-8 w-8" />
-            </button>
-            {selectedPhoto.signed_url && (
-              <img
-                src={selectedPhoto.signed_url}
-                alt={selectedPhoto.checklist_key || "Photo"}
-                className="max-w-full max-h-[80vh] rounded-lg object-contain"
-              />
-            )}
-            <div className="mt-2 text-center text-white">
-              <p className="text-sm">{selectedPhoto.checklist_key || "Photo"}</p>
-              <p className="text-xs text-slate-400">
-                {format(new Date(selectedPhoto.created_at), "PPp")}
-              </p>
+            {/* Image */}
+            <div className="relative aspect-[4/3] bg-black flex items-center justify-center">
+              {selectedPhoto.signed_url ? (
+                <img
+                  src={selectedPhoto.signed_url}
+                  alt={selectedPhoto.checklist_key || "Photo"}
+                  className="w-full h-full object-contain"
+                />
+              ) : (
+                <Image className="h-16 w-16 text-slate-400" />
+              )}
+              <button
+                onClick={() => setSelectedPhoto(null)}
+                className="absolute top-4 right-4 p-2 rounded-full bg-black/50 hover:bg-black/70 transition-colors"
+              >
+                <X className="h-5 w-5 text-white" />
+              </button>
+            </div>
+
+            {/* Info and Actions */}
+            <div className="p-4">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="font-semibold text-lg text-slate-800">
+                    {selectedPhoto.checklist_key || "Photo"}
+                  </h3>
+                  <p className="text-sm text-slate-500">
+                    Uploaded {format(new Date(selectedPhoto.created_at), "PPp")}
+                  </p>
+                </div>
+              </div>
+
+              {/* Current Status */}
+              {selectedPhoto.is_verified && (
+                <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center gap-2">
+                  <CheckCircle className="h-5 w-5 text-emerald-500" />
+                  <span className="text-emerald-700 text-sm font-medium">
+                    This photo has been verified ✓
+                  </span>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex gap-2">
+                <button
+                  onClick={handleVerify}
+                  disabled={verifyMutation.isPending || selectedPhoto.is_verified === true}
+                  className="flex-1 py-2.5 px-4 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                >
+                  {verifyMutation.isPending ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <CheckCircle className="h-5 w-5" />
+                  )}
+                  {verifyMutation.isPending ? "Approving..." : "Approve"}
+                </button>
+                <button
+                  onClick={handleOpenRejectModal}
+                  disabled={rejectMutation.isPending}
+                  className="flex-1 py-2.5 px-4 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                >
+                  <X className="h-5 w-5" />
+                  Reject
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reject Reason Modal */}
+      {showRejectModal && selectedPhoto && (
+        <div
+          className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60] p-4"
+          onClick={handleCloseRejectModal}
+        >
+          <div
+            className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-red-100 rounded-full">
+                <AlertTriangle className="h-6 w-6 text-red-500" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-slate-800">Reject Photo</h3>
+                <p className="text-sm text-slate-500">The patient will be notified</p>
+              </div>
+            </div>
+
+            <p className="text-sm text-slate-600 mb-4">
+              Please provide a reason for rejection. This message will be sent to the patient so they can submit better photos.
+            </p>
+
+            <textarea
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              placeholder="e.g., Photo is blurry, please send a clearer one from the front angle..."
+              className="w-full p-3 border border-slate-200 rounded-lg resize-none h-28 focus:ring-2 focus:ring-red-500 focus:border-transparent text-slate-700 placeholder:text-slate-400"
+              autoFocus
+            />
+
+            <div className="flex gap-3 mt-4">
+              <button
+                onClick={handleCloseRejectModal}
+                disabled={rejectMutation.isPending}
+                className="flex-1 py-2.5 px-4 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors font-medium disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleReject}
+                disabled={!rejectReason.trim() || rejectMutation.isPending}
+                className="flex-1 py-2.5 px-4 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {rejectMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <X className="h-4 w-4" />
+                    Reject & Notify
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>
