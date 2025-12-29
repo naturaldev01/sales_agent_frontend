@@ -25,9 +25,9 @@ interface SidebarProps {
 // roles: undefined = visible to all, otherwise array of allowed roles
 const allNavigation = [
   { name: "Dashboard", href: "/", icon: BarChart3, roles: ["admin", "doctor"] },
-  { name: "Leads", href: "/leads", icon: Users }, // visible to all
+  { name: "Leads", href: "/leads", icon: Users, roles: ["admin", "doctor"] }, // admin and doctor only
   { name: "Conversations", href: "/conversations", icon: MessageSquare, roles: ["admin", "doctor"] },
-  { name: "AI Training", href: "/ai-training", icon: Sparkles, roles: ["admin", "doctor"] }, // AI training center
+  { name: "AI Training", href: "/ai-training", icon: Sparkles, roles: ["admin", "doctor", "sales_agent"] }, // AI training center
   { name: "Photos", href: "/photos", icon: ImageIcon, roles: ["admin"] }, // only admin
   { name: "Settings", href: "/settings", icon: Settings, roles: ["admin"] }, // only admin
 ];
