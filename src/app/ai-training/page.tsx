@@ -16,6 +16,7 @@ import {
   Sparkles,
   Bot,
   UserCircle,
+  User,
 } from "lucide-react";
 import {
   getFeedbackStats,
@@ -23,6 +24,7 @@ import {
   getConversations,
   getConversationMessages,
   Message,
+  Conversation,
 } from "@/lib/api";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
