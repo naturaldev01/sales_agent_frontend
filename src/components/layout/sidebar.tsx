@@ -21,15 +21,26 @@ interface SidebarProps {
   onToggle: () => void;
 }
 
+// Navigation item type
+interface NavItem {
+  name: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+  roles?: string[];
+  hidden?: boolean;
+}
+
 // Navigation items with role-based visibility
 // roles: undefined = visible to all, otherwise array of allowed roles
-const allNavigation = [
+// hidden: true = temporarily hidden from navigation
+const allNavigation: NavItem[] = [
   { name: "Dashboard", href: "/", icon: BarChart3, roles: ["admin", "doctor"] },
-  { name: "Leads", href: "/leads", icon: Users, roles: ["admin", "doctor"] }, // admin and doctor only
+  { name: "Leads", href: "/leads", icon: Users, roles: ["admin", "doctor"] },
   { name: "Conversations", href: "/conversations", icon: MessageSquare, roles: ["admin", "doctor"] },
-  { name: "AI Training", href: "/ai-training", icon: Sparkles, roles: ["admin", "doctor", "sales_agent"] }, // AI training center
-  { name: "Photos", href: "/photos", icon: ImageIcon, roles: ["admin"] }, // only admin
-  { name: "Settings", href: "/settings", icon: Settings, roles: ["admin"] }, // only admin
+  { name: "AI Training", href: "/ai-training", icon: Sparkles, roles: ["admin", "doctor", "sales_agent"] },
+  // Photos page is hidden - doctors review photos in Lead Detail > Photos tab
+  // { name: "Photos", href: "/photos", icon: ImageIcon, roles: ["admin"], hidden: true },
+  { name: "Settings", href: "/settings", icon: Settings, roles: ["admin"] },
 ];
 
 const adminNavigation = [
@@ -108,6 +119,8 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
         <nav className="flex-1 p-4 space-y-2">
           {allNavigation
             .filter((item) => {
+              // Skip hidden items
+              if (item.hidden) return false;
               // If no roles specified, visible to all
               if (!item.roles) return true;
               // Check if user's role is in the allowed roles
