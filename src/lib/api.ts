@@ -67,6 +67,19 @@ export interface Conversation {
   } | null;
 }
 
+export interface MessageFeedback {
+  id: string;
+  rating: "good" | "bad" | "improvable";
+  comment: string | null;
+  suggested_response: string | null;
+  created_at: string | null;
+  users?: {
+    id: string;
+    name: string;
+    avatar_url: string | null;
+  } | null;
+}
+
 export interface Message {
   id: string;
   conversation_id: string;
@@ -77,6 +90,7 @@ export interface Message {
   media_url: string | null;
   sender_type: string;
   created_at: string;
+  ai_message_feedback?: MessageFeedback[] | null;
 }
 
 export interface PhotoAsset {

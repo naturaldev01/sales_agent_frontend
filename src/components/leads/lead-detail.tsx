@@ -21,6 +21,10 @@ import {
   Trash2,
   Edit3,
   Loader2,
+  ThumbsUp,
+  ThumbsDown,
+  AlertCircle,
+  Bot,
 } from "lucide-react";
 import {
   getLead,
@@ -357,9 +361,10 @@ function MessagesTab({ conversationId }: { conversationId: string }) {
 
 function MessageBubble({ message }: { message: Message }) {
   const isIncoming = message.direction === "in";
+  const isAi = message.sender_type === "ai";
 
   return (
-    <div className={cn("flex", isIncoming ? "justify-start" : "justify-end")}>
+    <div className={cn("flex flex-col", isIncoming ? "items-start" : "items-end")}>
       <div
         className={cn(
           "max-w-[80%] rounded-2xl px-4 py-3",
@@ -376,9 +381,54 @@ function MessageBubble({ message }: { message: Message }) {
           )}
         >
           {format(new Date(message.created_at), "p")} •{" "}
-          {message.sender_type}
+          {isAi ? (
+            <span className="inline-flex items-center gap-0.5">
+              <Bot className="h-3 w-3" /> AI
+            </span>
+          ) : (
+            message.sender_type
+          )}
         </div>
       </div>
+
+      {/* Show feedback below AI messages */}
+      {isAi && message.ai_message_feedback && message.ai_message_feedback.length > 0 && (
+        <div className="mt-1.5 max-w-[80%] space-y-1">
+          {message.ai_message_feedback.map((feedback) => (
+            <div
+              key={feedback.id}
+              className={cn(
+                "px-2.5 py-1.5 rounded-lg border text-xs",
+                feedback.rating === "good" && "bg-green-50 border-green-200",
+                feedback.rating === "bad" && "bg-red-50 border-red-200",
+                feedback.rating === "improvable" && "bg-amber-50 border-amber-200"
+              )}
+            >
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span
+                  className={cn(
+                    "inline-flex items-center gap-0.5 font-medium",
+                    feedback.rating === "good" && "text-green-700",
+                    feedback.rating === "bad" && "text-red-700",
+                    feedback.rating === "improvable" && "text-amber-700"
+                  )}
+                >
+                  {feedback.rating === "good" && <ThumbsUp className="h-3 w-3" />}
+                  {feedback.rating === "bad" && <ThumbsDown className="h-3 w-3" />}
+                  {feedback.rating === "improvable" && <AlertCircle className="h-3 w-3" />}
+                  {feedback.rating === "good" ? "İyi" : feedback.rating === "bad" ? "Kötü" : "Geliştirilebilir"}
+                </span>
+                {feedback.users?.name && (
+                  <span className="text-slate-500">• {feedback.users.name}</span>
+                )}
+              </div>
+              {feedback.comment && (
+                <p className="text-slate-600 mt-0.5">{feedback.comment}</p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

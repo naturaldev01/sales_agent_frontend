@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
-import { MessageSquare, User, Clock, ChevronRight } from "lucide-react";
+import { MessageSquare, User, Clock, ChevronRight, ThumbsUp, ThumbsDown, AlertCircle, Bot } from "lucide-react";
 import { getConversations, getConversationMessages, Conversation } from "@/lib/api";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -157,24 +157,70 @@ function ConversationDetail({ conversationId }: { conversationId: string }) {
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages?.map((msg) => (
-          <div
-            key={msg.id}
-            className={cn(
-              "max-w-[80%] p-3 rounded-2xl",
-              msg.direction === "in"
-                ? "bg-slate-100 text-slate-800 mr-auto rounded-bl-sm"
-                : "bg-emerald-500 text-white ml-auto rounded-br-sm"
-            )}
-          >
-            <p className="text-sm">{msg.content}</p>
-            <p
+          <div key={msg.id} className={cn("flex flex-col", msg.direction === "in" ? "items-start" : "items-end")}>
+            <div
               className={cn(
-                "text-xs mt-1",
-                msg.direction === "in" ? "text-slate-400" : "text-emerald-100"
+                "max-w-[80%] p-3 rounded-2xl",
+                msg.direction === "in"
+                  ? "bg-slate-100 text-slate-800 rounded-bl-sm"
+                  : "bg-emerald-500 text-white rounded-br-sm"
               )}
             >
-              {msg.sender_type} • {formatDistanceToNow(new Date(msg.created_at), { addSuffix: true })}
-            </p>
+              <p className="text-sm">{msg.content}</p>
+              <p
+                className={cn(
+                  "text-xs mt-1",
+                  msg.direction === "in" ? "text-slate-400" : "text-emerald-100"
+                )}
+              >
+                {msg.sender_type === "ai" ? (
+                  <span className="inline-flex items-center gap-1">
+                    <Bot className="h-3 w-3" /> AI
+                  </span>
+                ) : (
+                  msg.sender_type
+                )} • {formatDistanceToNow(new Date(msg.created_at), { addSuffix: true })}
+              </p>
+            </div>
+
+            {/* Show feedback below AI messages */}
+            {msg.sender_type === "ai" && msg.ai_message_feedback && msg.ai_message_feedback.length > 0 && (
+              <div className="mt-1.5 max-w-[80%] space-y-1">
+                {msg.ai_message_feedback.map((feedback) => (
+                  <div
+                    key={feedback.id}
+                    className={cn(
+                      "px-2.5 py-1.5 rounded-lg border text-xs",
+                      feedback.rating === "good" && "bg-green-50 border-green-200",
+                      feedback.rating === "bad" && "bg-red-50 border-red-200",
+                      feedback.rating === "improvable" && "bg-amber-50 border-amber-200"
+                    )}
+                  >
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span
+                        className={cn(
+                          "inline-flex items-center gap-0.5 font-medium",
+                          feedback.rating === "good" && "text-green-700",
+                          feedback.rating === "bad" && "text-red-700",
+                          feedback.rating === "improvable" && "text-amber-700"
+                        )}
+                      >
+                        {feedback.rating === "good" && <ThumbsUp className="h-3 w-3" />}
+                        {feedback.rating === "bad" && <ThumbsDown className="h-3 w-3" />}
+                        {feedback.rating === "improvable" && <AlertCircle className="h-3 w-3" />}
+                        {feedback.rating === "good" ? "İyi" : feedback.rating === "bad" ? "Kötü" : "Geliştirilebilir"}
+                      </span>
+                      {feedback.users?.name && (
+                        <span className="text-slate-500">• {feedback.users.name}</span>
+                      )}
+                    </div>
+                    {feedback.comment && (
+                      <p className="text-slate-600 mt-0.5">{feedback.comment}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ))}
 

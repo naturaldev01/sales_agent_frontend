@@ -307,6 +307,9 @@ function MessageBubble({
   const [autoLearnedMessage, setAutoLearnedMessage] = useState("");
   const queryClient = useQueryClient();
 
+  // Check if this message already has feedback
+  const existingFeedback = message.ai_message_feedback && message.ai_message_feedback.length > 0;
+
   const rateMutation = useMutation({
     mutationFn: (data: {
       rating: "good" | "bad" | "improvable";
@@ -316,6 +319,7 @@ function MessageBubble({
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["feedback-stats"] });
       queryClient.invalidateQueries({ queryKey: ["knowledge-base"] });
+      queryClient.invalidateQueries({ queryKey: ["conversation-messages"] });
       setShowCommentBox(false);
       
       // Show success toast with auto-learn message
@@ -398,8 +402,8 @@ function MessageBubble({
         <p className="text-sm whitespace-pre-wrap">{message.content}</p>
       </div>
 
-      {/* Rating Buttons - Only for AI messages */}
-      {showRating && !rating && !rateMutation.isSuccess && (
+      {/* Rating Buttons - Only for AI messages without existing feedback */}
+      {showRating && !rating && !rateMutation.isSuccess && !existingFeedback && (
         <div className="flex items-center gap-2 mt-2 mr-2">
           <span className="text-xs text-slate-400 mr-1">Değerlendir:</span>
           <button
@@ -464,6 +468,56 @@ function MessageBubble({
               {autoLearnedMessage}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Existing Feedback Display - Show previous comments below AI messages */}
+      {showRating && message.ai_message_feedback && message.ai_message_feedback.length > 0 && (
+        <div className="mt-2 mr-2 w-full max-w-[80%] ml-auto space-y-1">
+          {message.ai_message_feedback.map((feedback) => (
+            <div
+              key={feedback.id}
+              className={cn(
+                "px-3 py-2 rounded-lg border text-xs",
+                feedback.rating === "good" && "bg-green-50 border-green-200",
+                feedback.rating === "bad" && "bg-red-50 border-red-200",
+                feedback.rating === "improvable" && "bg-amber-50 border-amber-200"
+              )}
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <span
+                  className={cn(
+                    "inline-flex items-center gap-1 font-medium",
+                    feedback.rating === "good" && "text-green-700",
+                    feedback.rating === "bad" && "text-red-700",
+                    feedback.rating === "improvable" && "text-amber-700"
+                  )}
+                >
+                  {feedback.rating === "good" && <ThumbsUp className="h-3 w-3" />}
+                  {feedback.rating === "bad" && <ThumbsDown className="h-3 w-3" />}
+                  {feedback.rating === "improvable" && <AlertCircle className="h-3 w-3" />}
+                  {feedback.rating === "good" ? "İyi" : feedback.rating === "bad" ? "Kötü" : "Geliştirilebilir"}
+                </span>
+                {feedback.users?.name && (
+                  <span className="text-slate-500">• {feedback.users.name}</span>
+                )}
+                {feedback.created_at && (
+                  <span className="text-slate-400">
+                    • {formatDistanceToNow(new Date(feedback.created_at), { addSuffix: true })}
+                  </span>
+                )}
+              </div>
+              {feedback.comment && (
+                <p className="text-slate-600 mb-1">{feedback.comment}</p>
+              )}
+              {feedback.suggested_response && (
+                <div className="mt-1 pt-1 border-t border-slate-200">
+                  <span className="text-slate-500 font-medium">Önerilen:</span>
+                  <p className="text-slate-700 mt-0.5">{feedback.suggested_response}</p>
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       )}
 
